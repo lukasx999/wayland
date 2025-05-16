@@ -9,11 +9,9 @@ wayland-scanner client-header \
 < /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml \
 > xdg-shell-client-protocol.h
 
-cc xdg-shell-protocol.c -c
-
-c++ main.cc xdg-shell-protocol.o \
--Wno-attributes \
--o out \
--std=c++23 \
--Wall -Wextra -pedantic -ggdb \
+cc main.c xdg-shell-protocol.c \
+-Wno-attributes                \
+-o out                         \
+-std=c11                       \
+-Wall -Wextra -pedantic -ggdb  \
 -lwayland-client -lrt
