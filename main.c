@@ -12,7 +12,8 @@
 
 // https://wayland-book.com/
 
-typedef struct {
+typedef struct
+{
     struct wl_display    *dpy;
     struct wl_registry   *reg;
     struct wl_compositor *comp;
@@ -29,12 +30,7 @@ static void xdg_base_ping(void *data, struct xdg_wm_base *xdg_wm_base, uint32_t 
     xdg_wm_base_pong(xdg_wm_base, serial);
 }
 
-
-static struct xdg_wm_base_listener xdg_wm_base_listener = {
-    .ping = xdg_base_ping,
-};
-
-void reg_global(
+void registry_global(
     void *data,
     struct wl_registry *wl_registry,
     uint32_t name,
@@ -55,6 +51,10 @@ void reg_global(
 
     else if (!strcmp(interface, xdg_wm_base_interface.name)) {
         state->xdg_wm_base = wl_registry_bind(wl_registry, name, &xdg_wm_base_interface, 1);
+
+        static struct xdg_wm_base_listener xdg_wm_base_listener = {
+            .ping = xdg_base_ping,
+        };
 
         xdg_wm_base_add_listener(state->xdg_wm_base, &xdg_wm_base_listener, state);
     }
@@ -80,10 +80,6 @@ static void wl_buffer_release(void *data, struct wl_buffer *wl_buffer)
     (void) data;
     wl_buffer_destroy(wl_buffer);
 }
-
-static struct wl_buffer_listener wl_buffer_listener = {
-    .release = wl_buffer_release,
-};
 
 struct wl_buffer *draw(State *state)
 {
@@ -125,6 +121,10 @@ struct wl_buffer *draw(State *state)
     }
     munmap(pool_data, size);
 
+    static struct wl_buffer_listener wl_buffer_listener = {
+        .release = wl_buffer_release,
+    };
+
     wl_buffer_add_listener(buffer, &wl_buffer_listener, NULL);
 
     return buffer;
@@ -152,16 +152,19 @@ int main(void)
     assert(state.reg != NULL);
 
     struct wl_registry_listener reg_listener = {
-        .global = reg_global,
+        .global = registry_global,
         .global_remove = NULL,
     };
     wl_registry_add_listener(state.reg, &reg_listener, &state);
     wl_display_roundtrip(state.dpy);
 
-    state.surface = wl_compositor_create_surface(state.comp);
+    state.surface     = wl_compositor_create_surface(state.comp);
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.surface);
 
-    struct xdg_surface_listener xdg_surface_listener = { .configure = xdg_surface_configure };
+    static struct xdg_surface_listener xdg_surface_listener = {
+        .configure = xdg_surface_configure,
+    };
+
     xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener, &state);
 
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
