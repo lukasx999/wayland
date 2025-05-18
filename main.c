@@ -19,6 +19,8 @@ typedef struct
     struct wl_compositor *comp;
     struct wl_surface    *surface;
     struct wl_shm        *shm;
+    struct wl_seat       *seat;
+    struct wl_pointer    *pointer;
     struct xdg_wm_base   *xdg_wm_base;
     struct xdg_surface   *xdg_surface;
     struct xdg_toplevel  *xdg_toplevel;
@@ -47,6 +49,10 @@ void registry_global(
 
     else if (!strcmp(interface, wl_compositor_interface.name)) {
         state->comp = wl_registry_bind(wl_registry, name, &wl_compositor_interface, 4);
+    }
+
+    else if (!strcmp(interface, wl_seat_interface.name)) {
+        state->seat = wl_registry_bind(wl_registry, name, &wl_seat_interface, 4);
     }
 
     else if (!strcmp(interface, xdg_wm_base_interface.name)) {
@@ -140,6 +146,20 @@ static void xdg_surface_configure(void *data, struct xdg_surface *xdg_surface, u
     wl_surface_commit(state->surface);
 }
 
+static void wl_pointer_motion(void *data, struct wl_pointer *wl_pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+{
+    // State *state = data;
+    printf("x: %d\n", surface_x);
+    printf("y: %d\n", surface_y);
+}
+
+static void wl_seat_capabilities(void *data, struct wl_seat *wl_seat, uint32_t capabilities)
+{
+    printf("%d\n", capabilities);
+}
+
+static void wl_seat_name(void *data, struct wl_seat *wl_seat, const char *name) {}
+
 int main(void)
 {
 
@@ -153,10 +173,26 @@ int main(void)
 
     struct wl_registry_listener reg_listener = {
         .global = registry_global,
-        .global_remove = NULL,
     };
     wl_registry_add_listener(state.reg, &reg_listener, &state);
     wl_display_roundtrip(state.dpy);
+
+
+    static struct wl_seat_listener wl_seat_listener = {
+        .capabilities = wl_seat_capabilities,
+        .name = wl_seat_name,
+    };
+    wl_seat_add_listener(state.seat, &wl_seat_listener, &state);
+
+
+    // static struct wl_pointer_listener wl_pointer_listener = {
+    //     .motion = wl_pointer_motion,
+    // };
+    //
+    // state.pointer = wl_seat_get_pointer(state.seat);
+    // wl_pointer_add_listener(state.pointer, &wl_pointer_listener, &state);
+
+
 
     state.surface     = wl_compositor_create_surface(state.comp);
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.surface);
