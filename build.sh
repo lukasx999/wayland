@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+wayland-scanner private-code xdg-shell.xml xdg-shell.c
+wayland-scanner client-header xdg-shell.xml xdg-shell.h
+
+cc xdg-shell.c -c
+c++ main.cc xdg-shell.o -std=c++23 `pkg-config --libs --cflags wayland-client`
