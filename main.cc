@@ -92,7 +92,6 @@ void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t
 
     State& state = *static_cast<State*>(data);
 
-    std::println("configure");
     xdg_surface_ack_configure(xdg_surface, serial);
 
     int width = 1920;
