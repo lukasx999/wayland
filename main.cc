@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <wayland-client.h>
+#include <wayland-egl.h>
 #include "xdg-shell.h"
 
 template <typename T>
@@ -76,9 +77,15 @@ struct State {
     struct xdg_toplevel* xdg_toplevel = nullptr;
 };
 
+struct wl_buffer_listener wl_buffer_listener_ {
+    .release = [](void* data, struct wl_buffer* wl_buffer) {
+        wl_buffer_destroy(wl_buffer);
+    }
+};
+
 [[nodiscard]] int create_shm_file(size_t size) {
 
-    auto shm_path = "my_shm";
+    auto shm_path = "/wayland_shm";
     int fd = shm_open(shm_path, O_RDWR | O_CREAT, 0600);
     assert(fd != -1);
     shm_unlink(shm_path);
@@ -102,6 +109,12 @@ void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t
     int fd = create_shm_file(pool_size);
 
     uint32_t* pool_data = static_cast<uint32_t*>(mmap(nullptr, pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
+    assert(pool_data != MAP_FAILED);
+
+    struct wl_shm_pool* pool = wl_shm_create_pool(state.shm, fd, pool_size);
+    struct wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride*width, WL_SHM_FORMAT_XRGB8888);
+    wl_shm_pool_destroy(pool);
+    close(fd);
 
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
@@ -109,9 +122,33 @@ void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t
         }
     }
 
-    struct wl_shm_pool* pool = wl_shm_create_pool(state.shm, fd, pool_size);
-    struct wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
+    for (int x = 0; x < 500; ++x) {
+        for (int y = 0; y < 500; ++y) {
+            pool_data[x + y * width] = 0xffffffff;
+        }
+    }
 
+    float radius = 100.0f;
+    float center_x = width / 2.0f;
+    float center_y = height / 2.0f;
+
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
+            float diff_x = center_x - x;
+            float diff_y = center_y - y;
+
+            float len = std::sqrt(diff_x*diff_x + diff_y*diff_y);
+            if (len <= radius) {
+                pool_data[x + y * width] = 0xffffffff;
+            }
+
+        }
+    }
+
+
+    wl_buffer_add_listener(buffer, &wl_buffer_listener_, nullptr);
+
+    munmap(pool_data, pool_size);
     wl_surface_attach(state.surface, buffer, 0, 0);
     wl_surface_commit(state.surface);
 }
