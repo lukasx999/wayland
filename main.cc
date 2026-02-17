@@ -18,19 +18,21 @@
 namespace {
 
 struct State {
-    struct wl_display* display = nullptr;
-    struct wl_surface* surface = nullptr;
-    struct wl_registry* registry = nullptr;
-    struct wl_compositor* compositor = nullptr;
-    struct wl_shm* shm = nullptr;
-    struct wl_seat* seat = nullptr;
-    struct wl_keyboard* keyboard = nullptr;
+    struct wl_display* wl_display = nullptr;
+    struct wl_surface* wl_surface = nullptr;
+    struct wl_registry* wl_registry = nullptr;
+    struct wl_compositor* wl_compositor = nullptr;
+    struct wl_shm* wl_shm = nullptr;
+    struct wl_seat* wl_seat = nullptr;
+    struct wl_keyboard* wl_keyboard = nullptr;
+
     struct xdg_wm_base* xdg_wm_base = nullptr;
     struct xdg_surface* xdg_surface = nullptr;
     struct xdg_toplevel* xdg_toplevel = nullptr;
 
     EGLDisplay egl_display = nullptr;
     EGLContext egl_context = nullptr;
+    EGLConfig egl_config = nullptr;
 };
 
 
@@ -64,7 +66,7 @@ struct wl_buffer_listener wl_buffer_listener_ {
     uint32_t* pool_data = static_cast<uint32_t*>(mmap(nullptr, pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0));
     assert(pool_data != MAP_FAILED);
 
-    struct wl_shm_pool* pool = wl_shm_create_pool(state.shm, fd, pool_size);
+    struct wl_shm_pool* pool = wl_shm_create_pool(state.wl_shm, fd, pool_size);
     struct wl_buffer* buffer = wl_shm_pool_create_buffer(pool, 0, width, height, stride*width, WL_SHM_FORMAT_XRGB8888);
     wl_shm_pool_destroy(pool);
     close(fd);
@@ -111,9 +113,9 @@ void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t
 
     auto buffer = draw_frame(state);
 
-    wl_surface_attach(state.surface, buffer, 0, 0);
-    wl_surface_damage_buffer(state.surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
-    wl_surface_commit(state.surface);
+    wl_surface_attach(state.wl_surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state.wl_surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+    wl_surface_commit(state.wl_surface);
 }
 
 void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
@@ -121,11 +123,11 @@ void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_
 
     StringSwitch<std::function<void()>>(interface)
         .case_(wl_compositor_interface.name, [&] {
-            state->compositor = static_cast<struct wl_compositor*>(wl_registry_bind(wl_registry, name, &wl_compositor_interface, version));
+            state->wl_compositor = static_cast<struct wl_compositor*>(wl_registry_bind(wl_registry, name, &wl_compositor_interface, version));
         })
 
         .case_(wl_shm_interface.name, [&] {
-            state->shm = static_cast<struct wl_shm*>(wl_registry_bind(wl_registry, name, &wl_shm_interface, version));
+            state->wl_shm = static_cast<struct wl_shm*>(wl_registry_bind(wl_registry, name, &wl_shm_interface, version));
         })
 
         .case_(xdg_wm_base_interface.name, [&] {
@@ -133,7 +135,7 @@ void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_
         })
 
         .case_(wl_seat_interface.name, [&] {
-            state->seat = static_cast<struct wl_seat*>(wl_registry_bind(wl_registry, name, &wl_seat_interface, version));
+            state->wl_seat = static_cast<struct wl_seat*>(wl_registry_bind(wl_registry, name, &wl_seat_interface, version));
         })
 
         .default_([] {})
@@ -162,14 +164,14 @@ void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callba
 
     wl_callback_destroy(wl_callback);
 
-    struct wl_callback* frame_callback = wl_surface_frame(state.surface);
+    struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
     struct wl_buffer* buffer = draw_frame(state);
 
-    wl_surface_attach(state.surface, buffer, 0, 0);
-    wl_surface_damage_buffer(state.surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
-    wl_surface_commit(state.surface);
+    wl_surface_attach(state.wl_surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state.wl_surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+    wl_surface_commit(state.wl_surface);
 }
 
 struct wl_callback_listener frame_callback_listener {
@@ -188,7 +190,7 @@ struct wl_keyboard_listener keyboard_listener {
     .repeat_info = [](void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) { },
 };
 
-void init_egl(State& state) {
+void init_egl_context(State& state) {
 
     EGLint config_attribs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -204,7 +206,7 @@ void init_egl(State& state) {
         EGL_NONE
     };
 
-    state.egl_display = eglGetDisplay(state.display);
+    state.egl_display = eglGetDisplay(state.wl_display);
     assert(state.egl_display != EGL_NO_DISPLAY);
 
     EGLint major, minor;
@@ -218,7 +220,22 @@ void init_egl(State& state) {
     EGLint n;
     eglChooseConfig(state.egl_display, config_attribs, configs.data(), config_count, &n);
 
-    state.egl_context = eglCreateContext(state.egl_display, configs[0], EGL_NO_CONTEXT, context_attribs);
+    state.egl_config = configs[0];
+    state.egl_context = eglCreateContext(state.egl_display, state.egl_config, EGL_NO_CONTEXT, context_attribs);
+}
+
+void init_egl_window(State& state) {
+
+    wl_egl_window* egl_window = wl_egl_window_create(state.wl_surface, 1920, 1080);
+    assert(egl_window != EGL_NO_SURFACE);
+
+    EGLSurface egl_surface = eglCreateWindowSurface(state.egl_display, state.egl_config, egl_window, nullptr);
+    assert(eglMakeCurrent(state.egl_display, egl_surface, egl_surface, state.egl_context));
+}
+
+void init_egl(State& state) {
+    init_egl_context(state);
+    init_egl_window(state);
 }
 
 } // namespace
@@ -227,34 +244,32 @@ int main() {
 
     State state;
 
-    state.display = wl_display_connect(nullptr);
+    state.wl_display = wl_display_connect(nullptr);
 
     init_egl(state);
-    wl_egl_window* egl_window = wl_egl_window_create(state.surface, 1920, 1080);
-    assert(egl_window != EGL_NO_SURFACE);
 
-    state.registry = wl_display_get_registry(state.display);
-    wl_registry_add_listener(state.registry, &registry_listener_, &state);
-    wl_display_roundtrip(state.display);
+    state.wl_registry = wl_display_get_registry(state.wl_display);
+    wl_registry_add_listener(state.wl_registry, &registry_listener_, &state);
+    wl_display_roundtrip(state.wl_display);
 
-    state.keyboard = wl_seat_get_keyboard(state.seat);
-    wl_keyboard_add_listener(state.keyboard, &keyboard_listener, &state);
+    state.wl_keyboard = wl_seat_get_keyboard(state.wl_seat);
+    wl_keyboard_add_listener(state.wl_keyboard, &keyboard_listener, &state);
 
-    state.surface = wl_compositor_create_surface(state.compositor);
-    state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.surface);
+    state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
+    state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
     xdg_toplevel_set_title(state.xdg_toplevel, "my app");
 
-    wl_surface_commit(state.surface);
+    wl_surface_commit(state.wl_surface);
 
     xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
     xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
 
-    struct wl_callback* frame_callback = wl_surface_frame(state.surface);
+    struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
 
-    while (wl_display_dispatch(state.display) != -1);
+    while (wl_display_dispatch(state.wl_display) != -1);
 
-    wl_display_disconnect(state.display);
+    wl_display_disconnect(state.wl_display);
 }
