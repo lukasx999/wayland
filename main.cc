@@ -9,6 +9,7 @@
 
 #include <wayland-client.h>
 #include <wayland-egl.h>
+#include <EGL/egl.h>
 #include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
 
@@ -27,6 +28,9 @@ struct State {
     struct xdg_wm_base* xdg_wm_base = nullptr;
     struct xdg_surface* xdg_surface = nullptr;
     struct xdg_toplevel* xdg_toplevel = nullptr;
+
+    EGLDisplay egl_display = nullptr;
+    EGLContext egl_context = nullptr;
 };
 
 
@@ -184,6 +188,39 @@ struct wl_keyboard_listener keyboard_listener {
     .repeat_info = [](void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) { },
 };
 
+void init_egl(State& state) {
+
+    EGLint config_attribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+        EGL_NONE
+    };
+
+    EGLint context_attribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+    state.egl_display = eglGetDisplay(state.display);
+    assert(state.egl_display != EGL_NO_DISPLAY);
+
+    EGLint major, minor;
+    assert(eglInitialize(state.egl_display, &major, &minor) == EGL_TRUE);
+
+    EGLint config_count;
+    eglGetConfigs(state.egl_display, nullptr, 0, &config_count);
+
+    std::vector<EGLConfig> configs(config_count);
+
+    EGLint n;
+    eglChooseConfig(state.egl_display, config_attribs, configs.data(), config_count, &n);
+
+    state.egl_context = eglCreateContext(state.egl_display, configs[0], EGL_NO_CONTEXT, context_attribs);
+}
+
 } // namespace
 
 int main() {
@@ -191,6 +228,9 @@ int main() {
     State state;
 
     state.display = wl_display_connect(nullptr);
+
+    init_egl(state);
+
     state.registry = wl_display_get_registry(state.display);
     wl_registry_add_listener(state.registry, &registry_listener_, &state);
     wl_display_roundtrip(state.display);
