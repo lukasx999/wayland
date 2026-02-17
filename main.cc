@@ -230,6 +230,8 @@ int main() {
     state.display = wl_display_connect(nullptr);
 
     init_egl(state);
+    wl_egl_window* egl_window = wl_egl_window_create(state.surface, 1920, 1080);
+    assert(egl_window != EGL_NO_SURFACE);
 
     state.registry = wl_display_get_registry(state.display);
     wl_registry_add_listener(state.registry, &registry_listener_, &state);
