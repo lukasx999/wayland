@@ -10,6 +10,7 @@
 #include <wayland-client.h>
 #include <wayland-egl.h>
 #include "xdg-shell.h"
+#include <xkbcommon/xkbcommon.h>
 
 #include "string_switch.h"
 
@@ -21,6 +22,8 @@ struct State {
     struct wl_registry* registry = nullptr;
     struct wl_compositor* compositor = nullptr;
     struct wl_shm* shm = nullptr;
+    struct wl_seat* seat = nullptr;
+    struct wl_keyboard* keyboard = nullptr;
     struct xdg_wm_base* xdg_wm_base = nullptr;
     struct xdg_surface* xdg_surface = nullptr;
     struct xdg_toplevel* xdg_toplevel = nullptr;
@@ -125,6 +128,10 @@ void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_
             state->xdg_wm_base = static_cast<struct xdg_wm_base*>(wl_registry_bind(wl_registry, name, &xdg_wm_base_interface, version));
         })
 
+        .case_(wl_seat_interface.name, [&] {
+            state->seat = static_cast<struct wl_seat*>(wl_registry_bind(wl_registry, name, &wl_seat_interface, version));
+        })
+
         .default_([] {})
         .done()();
 }
@@ -165,6 +172,18 @@ struct wl_callback_listener frame_callback_listener {
     .done = frame_callback,
 };
 
+void on_key_press(void* data, struct wl_keyboard* wl_keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
+}
+
+struct wl_keyboard_listener keyboard_listener {
+    .keymap = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t format, int32_t fd, uint32_t size) { },
+    .enter = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) { },
+    .leave = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface) { },
+    .key = on_key_press,
+    .modifiers = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) { },
+    .repeat_info = [](void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) { },
+};
+
 } // namespace
 
 int main() {
@@ -176,7 +195,8 @@ int main() {
     wl_registry_add_listener(state.registry, &registry_listener_, &state);
     wl_display_roundtrip(state.display);
 
-
+    state.keyboard = wl_seat_get_keyboard(state.seat);
+    wl_keyboard_add_listener(state.keyboard, &keyboard_listener, &state);
 
     state.surface = wl_compositor_create_surface(state.compositor);
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.surface);
