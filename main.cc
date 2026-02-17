@@ -59,6 +59,12 @@ struct wl_buffer_listener wl_buffer_listener_ {
     }
 };
 
+void draw_egl(const State& state) {
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    eglSwapBuffers(state.egl_display, state.egl_surface);
+}
+
 [[nodiscard]] struct wl_buffer* draw_frame(const State& state) {
 
     int width = 1920;
@@ -114,13 +120,14 @@ struct wl_buffer_listener wl_buffer_listener_ {
 void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
     xdg_surface_ack_configure(xdg_surface, serial);
 
-    // State& state = *static_cast<State*>(data);
-    //
-    // auto buffer = draw_frame(state);
-    //
-    // wl_surface_attach(state.wl_surface, buffer, 0, 0);
-    // wl_surface_damage_buffer(state.wl_surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
-    // wl_surface_commit(state.wl_surface);
+    State& state = *static_cast<State*>(data);
+
+    auto buffer = draw_frame(state);
+
+    wl_surface_attach(state.wl_surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state.wl_surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+    wl_surface_commit(state.wl_surface);
+
 }
 
 void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
@@ -185,18 +192,6 @@ struct wl_callback_listener frame_callback_listener {
 
 void on_key_press(void* data, struct wl_keyboard* wl_keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
 }
-
-void toplevel_configure(void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, struct wl_array* states) {
-    State& state = *static_cast<State*>(data);
-    wl_surface_commit(state.wl_surface);
-}
-
-struct xdg_toplevel_listener toplevel_listener {
-    .configure = toplevel_configure,
-    .close = [](void* data, struct xdg_toplevel* xdg_toplevel) { },
-    .configure_bounds = [](void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height) { },
-    .wm_capabilities = [](void* data, struct xdg_toplevel* xdg_toplevel, struct wl_array* capabilities) { },
-};
 
 struct wl_keyboard_listener keyboard_listener {
     .keymap = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t format, int32_t fd, uint32_t size) { },
@@ -278,20 +273,13 @@ int main() {
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
     xdg_toplevel_set_title(state.xdg_toplevel, "my app");
 
-
     // wl_surface_commit(state.wl_surface);
-
-    xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
-    xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
-
+    // xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
+    // xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
     // struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     // wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
-    xdg_toplevel_add_listener(state.xdg_toplevel, &toplevel_listener, &state);
-
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    eglSwapBuffers(state.egl_display, state.egl_surface);
+    draw_egl(state);
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
