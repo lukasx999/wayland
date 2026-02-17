@@ -11,58 +11,7 @@
 #include <wayland-egl.h>
 #include "xdg-shell.h"
 
-template <typename T>
-class StringSwitch {
-    const std::string_view m_string;
-    std::optional<T> m_value;
-    T m_default{};
-
-public:
-    constexpr StringSwitch(std::string_view string) : m_string(string) { }
-
-    constexpr StringSwitch& case_(std::string_view query, T value) {
-        if (query == m_string)
-            m_value = value;
-
-        return *this;
-    }
-
-    constexpr StringSwitch& default_(T value) {
-        m_default = value;
-
-        return *this;
-    }
-
-    constexpr operator T() const {
-        return done();
-    }
-
-    [[nodiscard]] constexpr T done() const {
-        return m_value.value_or(m_default);
-    }
-
-};
-
-consteval void test_string_switch() {
-
-    static_assert(StringSwitch<int>("foo")
-    .case_("foo", 1)
-    .case_("bar", 2)
-    .case_("baz", 3)
-     == 1);
-
-    static_assert(StringSwitch<int>("foo")
-    .case_("bar", 2)
-    .case_("baz", 3)
-    .default_(1)
-     == 1);
-
-    static_assert(StringSwitch<int>("foo")
-    .case_("bar", 2)
-    .case_("baz", 3)
-     == 0);
-
-}
+#include "string_switch.h"
 
 namespace {
 
@@ -77,11 +26,6 @@ struct State {
     struct xdg_toplevel* xdg_toplevel = nullptr;
 };
 
-struct wl_buffer_listener wl_buffer_listener_ {
-    .release = [](void* data, struct wl_buffer* wl_buffer) {
-        wl_buffer_destroy(wl_buffer);
-    }
-};
 
 [[nodiscard]] int create_shm_file(size_t size) {
 
@@ -95,11 +39,13 @@ struct wl_buffer_listener wl_buffer_listener_ {
     return fd;
 }
 
-void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
+struct wl_buffer_listener wl_buffer_listener_ {
+    .release = [](void* data, struct wl_buffer* wl_buffer) {
+        wl_buffer_destroy(wl_buffer);
+    }
+};
 
-    State& state = *static_cast<State*>(data);
-
-    xdg_surface_ack_configure(xdg_surface, serial);
+[[nodiscard]] struct wl_buffer* draw_frame(const State& state) {
 
     int width = 1920;
     int height = 1080;
@@ -145,11 +91,21 @@ void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t
         }
     }
 
+    munmap(pool_data, pool_size);
 
     wl_buffer_add_listener(buffer, &wl_buffer_listener_, nullptr);
+    return buffer;
+}
 
-    munmap(pool_data, pool_size);
+void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
+    xdg_surface_ack_configure(xdg_surface, serial);
+
+    State& state = *static_cast<State*>(data);
+
+    auto buffer = draw_frame(state);
+
     wl_surface_attach(state.surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state.surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
     wl_surface_commit(state.surface);
 }
 
@@ -188,6 +144,27 @@ struct wl_registry_listener registry_listener_ {
     .global_remove = nullptr,
 };
 
+extern struct wl_callback_listener frame_callback_listener;
+
+void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callback_data) {
+    State& state = *static_cast<State*>(data);
+
+    wl_callback_destroy(wl_callback);
+
+    struct wl_callback* frame_callback = wl_surface_frame(state.surface);
+    wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
+
+    struct wl_buffer* buffer = draw_frame(state);
+
+    wl_surface_attach(state.surface, buffer, 0, 0);
+    wl_surface_damage_buffer(state.surface, 0, 0, std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+    wl_surface_commit(state.surface);
+}
+
+struct wl_callback_listener frame_callback_listener {
+    .done = frame_callback,
+};
+
 } // namespace
 
 int main() {
@@ -206,10 +183,14 @@ int main() {
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
     xdg_toplevel_set_title(state.xdg_toplevel, "my app");
 
+    wl_surface_commit(state.surface);
+
     xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
     xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
 
-    wl_surface_commit(state.surface);
+    struct wl_callback* frame_callback = wl_surface_frame(state.surface);
+    wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
+
 
     while (wl_display_dispatch(state.display) != -1);
 
