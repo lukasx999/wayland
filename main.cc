@@ -8,9 +8,8 @@
 #include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
 
-// #define GLAD_GL_IMPLEMENTATION
-// #include <glad/gl.h>
-#include <GL/gl.h>
+#define GLAD_GL_IMPLEMENTATION
+#include <glad/gl.h>
 
 #include "string_switch.h"
 
@@ -168,7 +167,9 @@ int main() {
     wl_keyboard_add_listener(state.wl_keyboard, &keyboard_listener, &state);
 
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
+
     init_egl(state);
+    gladLoadGL(eglGetProcAddress);
 
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
