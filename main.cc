@@ -226,11 +226,11 @@ void init_egl_context(State& state) {
 
 void init_egl_window(State& state) {
 
-    wl_egl_window* egl_window = wl_egl_window_create(state.wl_surface, 1920, 1080);
+    struct wl_egl_window* egl_window = wl_egl_window_create(state.wl_surface, 1920, 1080);
     assert(egl_window != EGL_NO_SURFACE);
 
     EGLSurface egl_surface = eglCreateWindowSurface(state.egl_display, state.egl_config, egl_window, nullptr);
-    assert(eglMakeCurrent(state.egl_display, egl_surface, egl_surface, state.egl_context));
+    // assert(eglMakeCurrent(state.egl_display, egl_surface, egl_surface, state.egl_context));
 }
 
 void init_egl(State& state) {
