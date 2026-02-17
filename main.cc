@@ -230,7 +230,7 @@ void init_egl_window(State& state) {
     assert(egl_window != EGL_NO_SURFACE);
 
     EGLSurface egl_surface = eglCreateWindowSurface(state.egl_display, state.egl_config, egl_window, nullptr);
-    // assert(eglMakeCurrent(state.egl_display, egl_surface, egl_surface, state.egl_context));
+    assert(eglMakeCurrent(state.egl_display, egl_surface, egl_surface, state.egl_context));
 }
 
 void init_egl(State& state) {
@@ -246,19 +246,21 @@ int main() {
 
     state.wl_display = wl_display_connect(nullptr);
 
-    init_egl(state);
-
     state.wl_registry = wl_display_get_registry(state.wl_display);
     wl_registry_add_listener(state.wl_registry, &registry_listener_, &state);
     wl_display_roundtrip(state.wl_display);
+
 
     state.wl_keyboard = wl_seat_get_keyboard(state.wl_seat);
     wl_keyboard_add_listener(state.wl_keyboard, &keyboard_listener, &state);
 
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
+    init_egl(state);
+
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
     xdg_toplevel_set_title(state.xdg_toplevel, "my app");
+
 
     wl_surface_commit(state.wl_surface);
 
