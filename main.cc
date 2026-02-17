@@ -8,8 +8,11 @@
 #include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
 
-#define GLAD_GL_IMPLEMENTATION
+// #define GLAD_GL_IMPLEMENTATION
 #include <glad/gl.h>
+// #include <GL/gl.h>
+
+#include <gfx/gfx.h>
 
 #include "string_switch.h"
 
@@ -180,6 +183,8 @@ int main() {
 
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
+
+    gfx::ExternalContext ctx(1920, 1080);
 
     eglSwapBuffers(state.egl_display, state.egl_surface);
 
