@@ -34,6 +34,8 @@ struct State {
     struct xdg_surface* xdg_surface = nullptr;
     struct xdg_toplevel* xdg_toplevel = nullptr;
 
+    struct wl_egl_window* egl_window = nullptr;
+
     EGLDisplay egl_display = nullptr;
     EGLSurface egl_surface = nullptr;
     EGLContext egl_context = nullptr;
@@ -112,6 +114,19 @@ struct wl_callback_listener frame_callback_listener {
     .done = frame_callback,
 };
 
+void toplevel_configure(void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, struct wl_array* states) {
+    State& state = *static_cast<State*>(data);
+    glViewport(0, 0, width, height);
+    wl_egl_window_resize(state.egl_window, width, height, 0, 0);
+}
+
+struct xdg_toplevel_listener toplevel_listener {
+    .configure = toplevel_configure,
+    .close = [](void* data, struct xdg_toplevel* xdg_toplevel) { },
+    .configure_bounds = [](void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height) { },
+    .wm_capabilities = [](void* data, struct xdg_toplevel* xdg_toplevel, struct wl_array* capabilities) { },
+};
+
 void on_key_press(void* data, struct wl_keyboard* wl_keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
 }
 
@@ -124,7 +139,7 @@ struct wl_keyboard_listener keyboard_listener {
     .repeat_info = [](void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) { },
 };
 
-void init_egl(State& state) {
+void init_egl(State& state, int width, int height) {
 
     EGLint config_attribs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -162,16 +177,20 @@ void init_egl(State& state) {
     state.egl_context = eglCreateContext(state.egl_display, state.egl_config, EGL_NO_CONTEXT, context_attribs);
     assert(state.egl_context != EGL_NO_CONTEXT);
 
-    struct wl_egl_window* egl_window = wl_egl_window_create(state.wl_surface, 1920, 1080);
-    assert(egl_window != EGL_NO_SURFACE);
+    state.egl_window = wl_egl_window_create(state.wl_surface, width, height);
+    assert(state.egl_window != EGL_NO_SURFACE);
 
-    state.egl_surface = eglCreateWindowSurface(state.egl_display, state.egl_config, egl_window, nullptr);
+    state.egl_surface = eglCreateWindowSurface(state.egl_display, state.egl_config, state.egl_window, nullptr);
     assert(eglMakeCurrent(state.egl_display, state.egl_surface, state.egl_surface, state.egl_context));
 }
 
 } // namespace
 
 int main() {
+
+    const char* window_title = "my wayland app";
+    int width = 1920;
+    int height = 1080;
 
     State state;
 
@@ -187,12 +206,15 @@ int main() {
 
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
 
-    init_egl(state);
+    init_egl(state, width, height);
     // gladLoadGL(eglGetProcAddress);
 
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
-    xdg_toplevel_set_title(state.xdg_toplevel, "my app");
+    xdg_toplevel_set_title(state.xdg_toplevel, window_title);
+    // xdg_toplevel_set_max_size(state.xdg_toplevel, 100, 100);
+
+    xdg_toplevel_add_listener(state.xdg_toplevel, &toplevel_listener, &state);
 
     xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
     xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
@@ -200,9 +222,11 @@ int main() {
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
-    state.ctx.emplace(1920, 1080);
-
     eglSwapBuffers(state.egl_display, state.egl_surface);
+
+    int window_width, window_height;
+    wl_egl_window_get_attached_size(state.egl_window, &window_width, &window_height);
+    state.ctx.emplace(window_width, window_height);
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
