@@ -9,9 +9,6 @@
 #include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
 
-// #define GLAD_GL_IMPLEMENTATION
-// #include <glad/gl.h>
-
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -23,15 +20,15 @@
 namespace {
 
 struct State {
-    struct wl_display* wl_display = nullptr;
-    struct wl_surface* wl_surface = nullptr;
-    struct wl_registry* wl_registry = nullptr;
+    struct wl_display*    wl_display    = nullptr;
+    struct wl_surface*    wl_surface    = nullptr;
+    struct wl_registry*   wl_registry   = nullptr;
     struct wl_compositor* wl_compositor = nullptr;
-    struct wl_seat* wl_seat = nullptr;
-    struct wl_keyboard* wl_keyboard = nullptr;
+    struct wl_seat*       wl_seat       = nullptr;
+    struct wl_keyboard*   wl_keyboard   = nullptr;
 
-    struct xdg_wm_base* xdg_wm_base = nullptr;
-    struct xdg_surface* xdg_surface = nullptr;
+    struct xdg_wm_base*  xdg_wm_base  = nullptr;
+    struct xdg_surface*  xdg_surface  = nullptr;
     struct xdg_toplevel* xdg_toplevel = nullptr;
 
     struct wl_egl_window* egl_window = nullptr;
@@ -39,7 +36,7 @@ struct State {
     EGLDisplay egl_display = nullptr;
     EGLSurface egl_surface = nullptr;
     EGLContext egl_context = nullptr;
-    EGLConfig egl_config = nullptr;
+    EGLConfig  egl_config  = nullptr;
 
     std::optional<gfx::ExternalContext> ctx;
 };
@@ -48,6 +45,7 @@ void draw(State& state) {
 
     state.ctx->draw([](gfx::Renderer& rd) {
         rd.clear_background(gfx::Color::blue());
+        rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange().set_alpha(128));
         rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
         rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
     });
@@ -141,19 +139,20 @@ struct wl_keyboard_listener keyboard_listener {
 
 void init_egl(State& state, int width, int height) {
 
-    EGLint config_attribs[] = {
+    std::array config_attribs {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         EGL_RED_SIZE, 8,
         EGL_GREEN_SIZE, 8,
         EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
         EGL_NONE
     };
 
-    EGLint context_attribs[] = {
+    std::array context_attribs {
         EGL_CONTEXT_MAJOR_VERSION, 4,
         EGL_CONTEXT_MINOR_VERSION, 5,
-        EGL_CONTEXT_OPENGL_DEBUG, true,
+        EGL_CONTEXT_OPENGL_DEBUG, EGL_TRUE,
         EGL_NONE
     };
 
@@ -171,10 +170,10 @@ void init_egl(State& state, int width, int height) {
     assert(eglBindAPI(EGL_OPENGL_API));
 
     EGLint n;
-    eglChooseConfig(state.egl_display, config_attribs, configs.data(), config_count, &n);
+    eglChooseConfig(state.egl_display, config_attribs.data(), configs.data(), config_count, &n);
 
-    state.egl_config = configs[0];
-    state.egl_context = eglCreateContext(state.egl_display, state.egl_config, EGL_NO_CONTEXT, context_attribs);
+    state.egl_config = configs.front();
+    state.egl_context = eglCreateContext(state.egl_display, state.egl_config, EGL_NO_CONTEXT, context_attribs.data());
     assert(state.egl_context != EGL_NO_CONTEXT);
 
     state.egl_window = wl_egl_window_create(state.wl_surface, width, height);
@@ -207,12 +206,10 @@ int main() {
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
 
     init_egl(state, width, height);
-    // gladLoadGL(eglGetProcAddress);
 
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
     xdg_toplevel_set_title(state.xdg_toplevel, window_title);
-    // xdg_toplevel_set_max_size(state.xdg_toplevel, 100, 100);
 
     xdg_toplevel_add_listener(state.xdg_toplevel, &toplevel_listener, &state);
 
@@ -224,9 +221,13 @@ int main() {
 
     eglSwapBuffers(state.egl_display, state.egl_surface);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     int window_width, window_height;
     wl_egl_window_get_attached_size(state.egl_window, &window_width, &window_height);
     state.ctx.emplace(window_width, window_height);
+
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
