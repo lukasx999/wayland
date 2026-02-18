@@ -5,12 +5,16 @@
 #include <wayland-client.h>
 #include <wayland-egl.h>
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
 
 // #define GLAD_GL_IMPLEMENTATION
-#include <glad/gl.h>
-// #include <GL/gl.h>
+// #include <glad/gl.h>
+
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GL/glext.h>
 
 #include <gfx/gfx.h>
 
@@ -34,11 +38,18 @@ struct State {
     EGLSurface egl_surface = nullptr;
     EGLContext egl_context = nullptr;
     EGLConfig egl_config = nullptr;
+
+    std::optional<gfx::ExternalContext> ctx;
 };
 
-void draw_egl(const State& state) {
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+void draw(State& state) {
+
+    state.ctx->draw([](gfx::Renderer& rd) {
+        rd.clear_background(gfx::Color::blue());
+        rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
+        rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
+    });
+
     eglSwapBuffers(state.egl_display, state.egl_surface);
 }
 
@@ -94,7 +105,7 @@ void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callba
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
-    draw_egl(state);
+    draw(state);
 }
 
 struct wl_callback_listener frame_callback_listener {
@@ -125,7 +136,9 @@ void init_egl(State& state) {
     };
 
     EGLint context_attribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_CONTEXT_MAJOR_VERSION, 4,
+        EGL_CONTEXT_MINOR_VERSION, 5,
+        EGL_CONTEXT_OPENGL_DEBUG, true,
         EGL_NONE
     };
 
@@ -140,11 +153,14 @@ void init_egl(State& state) {
 
     std::vector<EGLConfig> configs(config_count);
 
+    assert(eglBindAPI(EGL_OPENGL_API));
+
     EGLint n;
     eglChooseConfig(state.egl_display, config_attribs, configs.data(), config_count, &n);
 
     state.egl_config = configs[0];
     state.egl_context = eglCreateContext(state.egl_display, state.egl_config, EGL_NO_CONTEXT, context_attribs);
+    assert(state.egl_context != EGL_NO_CONTEXT);
 
     struct wl_egl_window* egl_window = wl_egl_window_create(state.wl_surface, 1920, 1080);
     assert(egl_window != EGL_NO_SURFACE);
@@ -172,7 +188,7 @@ int main() {
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
 
     init_egl(state);
-    gladLoadGL(eglGetProcAddress);
+    // gladLoadGL(eglGetProcAddress);
 
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
@@ -184,7 +200,7 @@ int main() {
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
-    gfx::ExternalContext ctx(1920, 1080);
+    state.ctx.emplace(1920, 1080);
 
     eglSwapBuffers(state.egl_display, state.egl_surface);
 
