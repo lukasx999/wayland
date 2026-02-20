@@ -6,8 +6,9 @@
 #include <wayland-egl.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include "xdg-shell.h"
 #include <xkbcommon/xkbcommon.h>
+#include "xdg-shell.h"
+#include "wlr-layer-shell-unstable-v1.h"
 
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
