@@ -41,14 +41,11 @@ struct State {
     std::optional<gfx::ExternalContext> ctx;
 };
 
-void draw(State& state) {
-
-    state.ctx->draw([](gfx::Renderer& rd) {
-        rd.clear_background(gfx::Color::blue());
-        rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange().set_alpha(128));
-        rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
-        rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
-    });
+void draw(gfx::Renderer& rd) {
+    rd.clear_background(gfx::Color::blue());
+    rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange().set_alpha(128));
+    rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
+    rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
 }
 
 void xdg_surface_configure([[maybe_unused]] void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
@@ -100,7 +97,7 @@ void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callba
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
-    draw(state);
+    state.ctx->draw(draw);
 
     eglSwapBuffers(state.egl_display, state.egl_surface);
 }
@@ -218,14 +215,22 @@ int main() {
 
     eglSwapBuffers(state.egl_display, state.egl_surface);
 
+    auto get_width = [&] {
+        int width;
+        wl_egl_window_get_attached_size(state.egl_window, &width, nullptr);
+        return width;
+    };
+
+    auto get_height = [&] {
+        int height;
+        wl_egl_window_get_attached_size(state.egl_window, nullptr, &height);
+        return height;
+    };
+
+    state.ctx.emplace(get_width, get_height);
+
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    state.ctx.emplace([&] {
-        int width, height;
-        wl_egl_window_get_attached_size(state.egl_window, &width, &height);
-        return std::pair(width, height);
-    });
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
