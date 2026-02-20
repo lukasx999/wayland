@@ -55,20 +55,23 @@ void xdg_surface_configure([[maybe_unused]] void* data, struct xdg_surface* xdg_
 void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
     State* state = static_cast<State*>(data);
 
+    using namespace std::placeholders;
+    auto bind_global = std::bind(wl_registry_bind, wl_registry, name, _1, version);
+
     StringSwitch<std::function<void()>>(interface)
         .case_(wl_compositor_interface.name, [&] {
-            state->wl_compositor = static_cast<struct wl_compositor*>(wl_registry_bind(wl_registry, name, &wl_compositor_interface, version));
+            state->wl_compositor = static_cast<struct wl_compositor*>(bind_global(&wl_compositor_interface));
         })
 
         .case_(xdg_wm_base_interface.name, [&] {
-            state->xdg_wm_base = static_cast<struct xdg_wm_base*>(wl_registry_bind(wl_registry, name, &xdg_wm_base_interface, version));
+            state->xdg_wm_base = static_cast<struct xdg_wm_base*>(bind_global(&xdg_wm_base_interface));
         })
 
         .case_(wl_seat_interface.name, [&] {
-            state->wl_seat = static_cast<struct wl_seat*>(wl_registry_bind(wl_registry, name, &wl_seat_interface, version));
+            state->wl_seat = static_cast<struct wl_seat*>(bind_global(&wl_seat_interface));
         })
 
-        .default_([] {})
+        .default_([] { })
         .done()();
 }
 
@@ -228,9 +231,6 @@ int main() {
     };
 
     state.ctx.emplace(get_width, get_height);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
