@@ -109,7 +109,7 @@ struct wl_callback_listener frame_callback_listener {
     .done = frame_callback,
 };
 
-void xdg_toplevel_configure(void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, struct wl_array* states) {
+void xdg_toplevel_configure(void* data, [[maybe_unused]] struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, [[maybe_unused]] struct wl_array* states) {
     State& state = *static_cast<State*>(data);
     glViewport(0, 0, width, height);
     wl_egl_window_resize(state.egl_window, width, height, 0, 0);
