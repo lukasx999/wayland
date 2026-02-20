@@ -19,7 +19,7 @@
 
 namespace {
 
-class WaylandWindow {
+class WaylandWindow : public gfx::Surface {
 
     using DrawFn = std::function<void(gfx::Renderer&)>;
     DrawFn m_draw_fn;
@@ -42,7 +42,8 @@ class WaylandWindow {
     EGLContext egl_context = nullptr;
     EGLConfig  egl_config  = nullptr;
 
-    std::optional<gfx::ExternalContext> m_gfx_context;
+    // TODO: initialize gl context in pimpl
+    std::optional<gfx::Renderer> m_renderer;
 
 public:
     WaylandWindow(int width, int height, const char* title) {
@@ -70,25 +71,24 @@ public:
         wl_callback_add_listener(frame_callback, &m_frame_callback_listener, this);
 
         eglSwapBuffers(egl_display, egl_surface);
-
-        auto get_width = [&] {
-            int width;
-            wl_egl_window_get_attached_size(egl_window, &width, nullptr);
-            return width;
-        };
-
-        auto get_height = [&] {
-            int height;
-            wl_egl_window_get_attached_size(egl_window, nullptr, &height);
-            return height;
-        };
-
-        m_gfx_context.emplace(get_width, get_height);
+        m_renderer.emplace(*this);
     }
 
     ~WaylandWindow() {
         wl_display_disconnect(wl_display);
     }
+
+    [[nodiscard]] int get_width() const override {
+        int width;
+        wl_egl_window_get_attached_size(egl_window, &width, nullptr);
+        return width;
+    };
+
+    [[nodiscard]] int get_height() const override {
+        int height;
+        wl_egl_window_get_attached_size(egl_window, nullptr, &height);
+        return height;
+    };
 
     void draw_loop(DrawFn draw_fn) {
         m_draw_fn = draw_fn;
@@ -137,7 +137,7 @@ private:
         struct wl_callback* frame_callback = wl_surface_frame(self.wl_surface);
         wl_callback_add_listener(frame_callback, &m_frame_callback_listener, &self);
 
-        self.m_gfx_context->draw(self.m_draw_fn);
+        self.m_draw_fn(*self.m_renderer);
 
         eglSwapBuffers(self.egl_display, self.egl_surface);
     }
