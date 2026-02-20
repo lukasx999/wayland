@@ -42,9 +42,17 @@ struct State {
 };
 
 void draw(gfx::Renderer& rd) {
+    static gfx::Animation<gfx::Vec> anim { { 0, 0 }, rd.get_surface().get_center(), std::chrono::seconds(2), gfx::interpolators::ease_in_cubic};
+    static bool first = true;
+    if (first) {
+        anim.start();
+        first = false;
+    }
+
     rd.clear_background(gfx::Color::blue());
-    rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange().set_alpha(128));
+    rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange());
     rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
+    rd.draw_circle(anim, 150, gfx::Color::lightblue());
     rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
 }
 
