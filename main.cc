@@ -25,21 +25,21 @@ class WaylandWindow : public gfx::Surface {
     using DrawFn = std::function<void(gfx::Renderer&)>;
     DrawFn m_draw_fn;
 
-    struct wl_display*    m_wl_display    = nullptr;
-    struct wl_surface*    m_wl_surface    = nullptr;
-    struct wl_registry*   m_wl_registry   = nullptr;
-    struct wl_compositor* m_wl_compositor = nullptr;
-    struct wl_seat*       m_wl_seat       = nullptr;
-    struct wl_keyboard*   m_wl_keyboard   = nullptr;
+    wl_display*    m_wl_display    = nullptr;
+    wl_surface*    m_wl_surface    = nullptr;
+    wl_registry*   m_wl_registry   = nullptr;
+    wl_compositor* m_wl_compositor = nullptr;
+    wl_seat*       m_wl_seat       = nullptr;
+    wl_keyboard*   m_wl_keyboard   = nullptr;
 
-    struct xdg_wm_base*  m_xdg_wm_base  = nullptr;
-    struct xdg_surface*  m_xdg_surface  = nullptr;
-    struct xdg_toplevel* m_xdg_toplevel = nullptr;
+    xdg_wm_base*  m_xdg_wm_base  = nullptr;
+    xdg_surface*  m_xdg_surface  = nullptr;
+    xdg_toplevel* m_xdg_toplevel = nullptr;
 
-    struct zwlr_layer_shell_v1* m_zwlr_layer_shell = nullptr;
-    struct zwlr_layer_surface_v1* m_zwlr_layer_surface = nullptr;
+    zwlr_layer_shell_v1* m_zwlr_layer_shell = nullptr;
+    zwlr_layer_surface_v1* m_zwlr_layer_surface = nullptr;
 
-    struct wl_egl_window* m_egl_window = nullptr;
+    wl_egl_window* m_egl_window = nullptr;
     EGLDisplay m_egl_display = nullptr;
     EGLSurface m_egl_surface = nullptr;
     EGLContext m_egl_context = nullptr;
@@ -123,19 +123,19 @@ private:
 
         util::StringSwitch<std::function<void()>>(interface)
             .case_(wl_compositor_interface.name, [&] {
-                self.m_wl_compositor = static_cast<struct wl_compositor*>(bind_global(&wl_compositor_interface));
+                self.m_wl_compositor = static_cast<wl_compositor*>(bind_global(&wl_compositor_interface));
             })
 
             .case_(xdg_wm_base_interface.name, [&] {
-                self.m_xdg_wm_base = static_cast<struct xdg_wm_base*>(bind_global(&xdg_wm_base_interface));
+                self.m_xdg_wm_base = static_cast<xdg_wm_base*>(bind_global(&xdg_wm_base_interface));
             })
 
             .case_(wl_seat_interface.name, [&] {
-                self.m_wl_seat = static_cast<struct wl_seat*>(bind_global(&wl_seat_interface));
+                self.m_wl_seat = static_cast<wl_seat*>(bind_global(&wl_seat_interface));
             })
 
             .case_(zwlr_layer_shell_v1_interface.name, [&] {
-                self.m_zwlr_layer_shell = static_cast<struct zwlr_layer_shell_v1*>(bind_global(&zwlr_layer_shell_v1_interface));
+                self.m_zwlr_layer_shell = static_cast<zwlr_layer_shell_v1*>(bind_global(&zwlr_layer_shell_v1_interface));
             })
 
             .default_([] { })
