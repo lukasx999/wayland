@@ -58,7 +58,7 @@ void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_
     using namespace std::placeholders;
     auto bind_global = std::bind(wl_registry_bind, wl_registry, name, _1, version);
 
-    StringSwitch<std::function<void()>>(interface)
+    util::StringSwitch<std::function<void()>>(interface)
         .case_(wl_compositor_interface.name, [&] {
             state.wl_compositor = static_cast<struct wl_compositor*>(bind_global(&wl_compositor_interface));
         })
@@ -117,21 +117,18 @@ void xdg_toplevel_configure(void* data, [[maybe_unused]] struct xdg_toplevel* xd
 
 struct xdg_toplevel_listener toplevel_listener {
     .configure = xdg_toplevel_configure,
-    .close = [](void* data, struct xdg_toplevel* xdg_toplevel) { },
-    .configure_bounds = [](void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height) { },
-    .wm_capabilities = [](void* data, struct xdg_toplevel* xdg_toplevel, struct wl_array* capabilities) { },
+    .close = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::close)>::value,
+    .configure_bounds = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::configure_bounds)>::value,
+    .wm_capabilities = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::wm_capabilities)>::value,
 };
 
-void on_key_press(void* data, struct wl_keyboard* wl_keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
-}
-
 struct wl_keyboard_listener keyboard_listener {
-    .keymap = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t format, int32_t fd, uint32_t size) { },
-    .enter = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) { },
-    .leave = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface) { },
-    .key = on_key_press,
-    .modifiers = [](void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) { },
-    .repeat_info = [](void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) { },
+    .keymap = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::keymap)>::value,
+    .enter = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::enter)>::value,
+    .leave = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::leave)>::value,
+    .key = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::key)>::value,
+    .modifiers = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::modifiers)>::value,
+    .repeat_info = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::repeat_info)>::value,
 };
 
 void init_egl(State& state, int width, int height) {

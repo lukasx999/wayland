@@ -4,18 +4,23 @@
 #include <string_view>
 #include <optional>
 
+namespace util {
+
 template <typename T>
 struct DefaultConstructedFunction;
 
-template <typename Return, typename... Args>
-struct DefaultConstructedFunction<Return(Args...)> {
-    static Return value(Args...) { }
+template <typename... Args>
+struct DefaultConstructedFunction<void(Args...)> {
+    static constexpr void value(Args...) { }
 };
 
-template <typename Return, typename... Args>
-struct DefaultConstructedFunction<Return(*)(Args...)> {
-    static Return value(Args...) { }
-};
+template <typename... Args>
+struct DefaultConstructedFunction<void(*)(Args...)> : DefaultConstructedFunction<void(Args...)> { };
+
+consteval void test_default_constructed_function() {
+    DefaultConstructedFunction<void(int, char, bool)>::value(1, 'x', true);
+    DefaultConstructedFunction<void(*)(int, char, bool)>::value(5, 'o', false);
+}
 
 template <typename T>
 class StringSwitch {
@@ -69,3 +74,24 @@ consteval void test_string_switch() {
     == 0);
 
 }
+
+template <typename... Ts>
+struct OverloadedLambda : Ts... {
+    using Ts::operator()...;
+};
+
+consteval void test_overloaded_lambda() {
+    static_assert(OverloadedLambda {
+        [](int) { return 1; },
+        [](double) { return 5.0; },
+        [](char) { return 'x'; },
+    }(1) == 1);
+
+    static_assert(OverloadedLambda {
+        [](std::string) { return "foo"; },
+        [](const char*) { return 5.0; },
+        [](int) { return 1; },
+    }("hello") == 5.0);
+}
+
+} // namespace util
