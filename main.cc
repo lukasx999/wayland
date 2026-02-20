@@ -37,7 +37,7 @@ class WaylandWindow : public gfx::Surface {
     struct xdg_toplevel* m_xdg_toplevel = nullptr;
 
     struct zwlr_layer_shell_v1* m_zwlr_layer_shell = nullptr;
-    struct zwlr_layer_surface_v1 *m_zwlr_layer_surface = nullptr;
+    struct zwlr_layer_surface_v1* m_zwlr_layer_surface = nullptr;
 
     struct wl_egl_window* m_egl_window = nullptr;
     EGLDisplay m_egl_display = nullptr;
@@ -74,11 +74,12 @@ public:
         }
 
         if (m_type == Type::WLRLayerSurface) {
-            m_zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(m_zwlr_layer_shell, m_wl_surface, nullptr, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "overlay");
+            m_zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(m_zwlr_layer_shell, m_wl_surface, nullptr, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, title);
 
             zwlr_layer_surface_v1_add_listener(m_zwlr_layer_surface, &m_zwlr_layer_surface_v1_listener, this);
             zwlr_layer_surface_v1_set_size(m_zwlr_layer_surface, 0, 100);
             zwlr_layer_surface_v1_set_anchor(m_zwlr_layer_surface, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP);
+            zwlr_layer_surface_v1_set_margin(m_zwlr_layer_surface, 10, 10, 10, 10);
         }
 
         wl_callback* frame_callback = wl_surface_frame(m_wl_surface);
