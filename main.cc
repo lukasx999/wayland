@@ -55,7 +55,7 @@ public:
 
         m_wl_display = wl_display_connect(nullptr);
         m_wl_registry = wl_display_get_registry(m_wl_display);
-        wl_registry_add_listener(m_wl_registry, &m_registry_listene, this);
+        wl_registry_add_listener(m_wl_registry, &m_registry_listener, this);
         wl_display_roundtrip(m_wl_display);
 
         m_wl_keyboard = wl_seat_get_keyboard(m_wl_seat);
@@ -77,17 +77,19 @@ public:
             m_zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(m_zwlr_layer_shell, m_wl_surface, nullptr, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "overlay");
 
             zwlr_layer_surface_v1_add_listener(m_zwlr_layer_surface, &m_zwlr_layer_surface_v1_listener, this);
-            zwlr_layer_surface_v1_set_size(m_zwlr_layer_surface, 0, 0);
+            zwlr_layer_surface_v1_set_size(m_zwlr_layer_surface, 0, 100);
             zwlr_layer_surface_v1_set_anchor(m_zwlr_layer_surface, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP);
         }
 
-        init_egl(width, height);
-
-        struct wl_callback* frame_callback = wl_surface_frame(m_wl_surface);
+        wl_callback* frame_callback = wl_surface_frame(m_wl_surface);
         wl_callback_add_listener(frame_callback, &m_frame_callback_listener, this);
 
-        eglSwapBuffers(m_egl_display, m_egl_surface);
+        init_egl(width, height);
         m_renderer.emplace(*this);
+
+        wl_surface_commit(m_wl_surface);
+        // doesnt work for some reason
+        // eglSwapBuffers(m_egl_display, m_egl_surface);
     }
 
     ~WaylandWindow() {
@@ -112,7 +114,7 @@ public:
     }
 
 private:
-    static void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
+    static void bind_globals(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
         WaylandWindow& self = *static_cast<WaylandWindow*>(data);
 
         using namespace std::placeholders;
@@ -143,7 +145,7 @@ private:
         xdg_surface_ack_configure(xdg_surface, serial);
     }
 
-    static void frame_callback(void* data, struct wl_callback* wl_callback, [[maybe_unused]] uint32_t callback_data) {
+    static void render_frame(void* data, struct wl_callback* wl_callback, [[maybe_unused]] uint32_t callback_data) {
         WaylandWindow& self = *static_cast<WaylandWindow*>(data);
 
         wl_callback_destroy(wl_callback);
@@ -152,7 +154,6 @@ private:
         wl_callback_add_listener(frame_callback, &m_frame_callback_listener, &self);
 
         self.m_draw_fn(*self.m_renderer);
-
         eglSwapBuffers(self.m_egl_display, self.m_egl_surface);
     }
 
@@ -231,13 +232,13 @@ private:
         }
     };
 
-    static inline wl_registry_listener m_registry_listene {
-        .global = registry_handle_global,
+    static inline wl_registry_listener m_registry_listener {
+        .global = bind_globals,
         .global_remove = util::DefaultConstructedFunction<decltype(wl_registry_listener::global_remove)>::value,
     };
 
     static inline wl_callback_listener m_frame_callback_listener {
-        .done = frame_callback,
+        .done = render_frame,
     };
 
     static inline xdg_toplevel_listener m_xdg_toplevel_listener {
