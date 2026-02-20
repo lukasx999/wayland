@@ -188,27 +188,23 @@ int main() {
     State state;
 
     state.wl_display = wl_display_connect(nullptr);
-
     state.wl_registry = wl_display_get_registry(state.wl_display);
     wl_registry_add_listener(state.wl_registry, &registry_listener_, &state);
     wl_display_roundtrip(state.wl_display);
 
-
     state.wl_keyboard = wl_seat_get_keyboard(state.wl_seat);
-    wl_keyboard_add_listener(state.wl_keyboard, &keyboard_listener, &state);
-
     state.wl_surface = wl_compositor_create_surface(state.wl_compositor);
-
-    init_egl(state, width, height);
-
     state.xdg_surface = xdg_wm_base_get_xdg_surface(state.xdg_wm_base, state.wl_surface);
     state.xdg_toplevel = xdg_surface_get_toplevel(state.xdg_surface);
+
     xdg_toplevel_set_title(state.xdg_toplevel, window_title);
 
+    wl_keyboard_add_listener(state.wl_keyboard, &keyboard_listener, &state);
     xdg_toplevel_add_listener(state.xdg_toplevel, &toplevel_listener, &state);
-
     xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
     xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, nullptr);
+
+    init_egl(state, width, height);
 
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
