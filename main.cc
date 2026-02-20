@@ -15,7 +15,7 @@
 
 #include <gfx/gfx.h>
 
-#include "string_switch.h"
+#include "util.h"
 
 namespace {
 
@@ -92,7 +92,7 @@ struct wl_registry_listener registry_listener_ {
 
 extern struct wl_callback_listener frame_callback_listener;
 
-void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callback_data) {
+void frame_callback(void* data, struct wl_callback* wl_callback, [[maybe_unused]] uint32_t callback_data) {
     State& state = *static_cast<State*>(data);
 
     wl_callback_destroy(wl_callback);

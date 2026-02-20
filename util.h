@@ -5,6 +5,19 @@
 #include <optional>
 
 template <typename T>
+struct DefaultConstructedFunction;
+
+template <typename Return, typename... Args>
+struct DefaultConstructedFunction<Return(Args...)> {
+    static Return value(Args...) { }
+};
+
+template <typename Return, typename... Args>
+struct DefaultConstructedFunction<Return(*)(Args...)> {
+    static Return value(Args...) { }
+};
+
+template <typename T>
 class StringSwitch {
     const std::string_view m_string;
     std::optional<T> m_value;
