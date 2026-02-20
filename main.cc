@@ -124,18 +124,18 @@ void xdg_toplevel_configure(void* data, [[maybe_unused]] struct xdg_toplevel* xd
 }
 
 struct xdg_toplevel_listener toplevel_listener {
-    .configure = xdg_toplevel_configure,
-    .close = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::close)>::value,
+    .configure        = xdg_toplevel_configure,
+    .close            = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::close)>::value,
     .configure_bounds = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::configure_bounds)>::value,
-    .wm_capabilities = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::wm_capabilities)>::value,
+    .wm_capabilities  = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::wm_capabilities)>::value,
 };
 
 struct wl_keyboard_listener keyboard_listener {
-    .keymap = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::keymap)>::value,
-    .enter = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::enter)>::value,
-    .leave = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::leave)>::value,
-    .key = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::key)>::value,
-    .modifiers = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::modifiers)>::value,
+    .keymap      = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::keymap)>::value,
+    .enter       = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::enter)>::value,
+    .leave       = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::leave)>::value,
+    .key         = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::key)>::value,
+    .modifiers   = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::modifiers)>::value,
     .repeat_info = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::repeat_info)>::value,
 };
 
@@ -143,9 +143,9 @@ void init_egl(State& state, int width, int height) {
 
     std::array config_attribs {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RED_SIZE, 8,
+        EGL_RED_SIZE,   8,
         EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
+        EGL_BLUE_SIZE,  8,
         EGL_ALPHA_SIZE, 8,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
         EGL_NONE
