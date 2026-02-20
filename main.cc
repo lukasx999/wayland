@@ -49,15 +49,10 @@ void draw(State& state) {
         rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
         rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
     });
-
-    eglSwapBuffers(state.egl_display, state.egl_surface);
 }
 
-void xdg_surface_configure(void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
+void xdg_surface_configure([[maybe_unused]] void* data, struct xdg_surface* xdg_surface, uint32_t serial) {
     xdg_surface_ack_configure(xdg_surface, serial);
-
-    State& state = *static_cast<State*>(data);
-    eglSwapBuffers(state.egl_display, state.egl_surface);
 }
 
 void registry_handle_global(void* data, struct wl_registry* wl_registry, uint32_t name, const char* interface, uint32_t version) {
@@ -106,20 +101,22 @@ void frame_callback(void* data, struct wl_callback* wl_callback, uint32_t callba
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
 
     draw(state);
+
+    eglSwapBuffers(state.egl_display, state.egl_surface);
 }
 
 struct wl_callback_listener frame_callback_listener {
     .done = frame_callback,
 };
 
-void toplevel_configure(void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, struct wl_array* states) {
+void xdg_toplevel_configure(void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height, struct wl_array* states) {
     State& state = *static_cast<State*>(data);
     glViewport(0, 0, width, height);
     wl_egl_window_resize(state.egl_window, width, height, 0, 0);
 }
 
 struct xdg_toplevel_listener toplevel_listener {
-    .configure = toplevel_configure,
+    .configure = xdg_toplevel_configure,
     .close = [](void* data, struct xdg_toplevel* xdg_toplevel) { },
     .configure_bounds = [](void* data, struct xdg_toplevel* xdg_toplevel, int32_t width, int32_t height) { },
     .wm_capabilities = [](void* data, struct xdg_toplevel* xdg_toplevel, struct wl_array* capabilities) { },
@@ -214,7 +211,7 @@ int main() {
     xdg_toplevel_add_listener(state.xdg_toplevel, &toplevel_listener, &state);
 
     xdg_wm_base_add_listener(state.xdg_wm_base, &xdg_wm_base_listener_, nullptr);
-    xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, &state);
+    xdg_surface_add_listener(state.xdg_surface, &xdg_surface_listener_, nullptr);
 
     struct wl_callback* frame_callback = wl_surface_frame(state.wl_surface);
     wl_callback_add_listener(frame_callback, &frame_callback_listener, &state);
@@ -224,10 +221,11 @@ int main() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    int window_width, window_height;
-    wl_egl_window_get_attached_size(state.egl_window, &window_width, &window_height);
-    state.ctx.emplace(window_width, window_height);
-
+    state.ctx.emplace([&] {
+        int width, height;
+        wl_egl_window_get_attached_size(state.egl_window, &width, &height);
+        return std::pair(width, height);
+    });
 
     while (wl_display_dispatch(state.wl_display) != -1);
 
