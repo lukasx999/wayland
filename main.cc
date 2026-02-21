@@ -48,23 +48,28 @@ class WaylandWindow : public gfx::Surface {
     // TODO: initialize gl context in pimpl
     std::optional<gfx::Renderer> m_renderer;
 
-    enum class Type { XDGToplevel, WLRLayerSurface } m_type = Type::WLRLayerSurface;
+    enum class Type { Toplevel, LayerSurface } m_type = Type::LayerSurface;
 
 public:
     WaylandWindow(int width, int height, const char* title) {
 
         m_wl_display = wl_display_connect(nullptr);
         m_wl_registry = wl_display_get_registry(m_wl_display);
-        wl_registry_add_listener(m_wl_registry, &m_registry_listener, this);
+        wl_registry_add_listener(m_wl_registry, &m_wl_registry_listener, this);
         wl_display_roundtrip(m_wl_display);
 
         m_wl_keyboard = wl_seat_get_keyboard(m_wl_seat);
         m_wl_surface = wl_compositor_create_surface(m_wl_compositor);
 
-        xdg_wm_base_add_listener(m_xdg_wm_base, &m_xdg_wm_base_listener, nullptr);
-        wl_keyboard_add_listener(m_wl_keyboard, &m_keyboard_listener, this);
+        if (!init_egl(width, height))
+            throw std::runtime_error("failed to initialize EGL");
 
-        if (m_type == Type::XDGToplevel) {
+        m_renderer.emplace(*this);
+
+        xdg_wm_base_add_listener(m_xdg_wm_base, &m_xdg_wm_base_listener, nullptr);
+        wl_keyboard_add_listener(m_wl_keyboard, &m_wl_keyboard_listener, this);
+
+        if (m_type == Type::Toplevel) {
             m_xdg_surface = xdg_wm_base_get_xdg_surface(m_xdg_wm_base, m_wl_surface);
             m_xdg_toplevel = xdg_surface_get_toplevel(m_xdg_surface);
             xdg_toplevel_set_title(m_xdg_toplevel, title);
@@ -73,24 +78,22 @@ public:
             xdg_surface_add_listener(m_xdg_surface, &m_xdg_surface_listener, nullptr);
         }
 
-        if (m_type == Type::WLRLayerSurface) {
+        if (m_type == Type::LayerSurface) {
             m_zwlr_layer_surface = zwlr_layer_shell_v1_get_layer_surface(m_zwlr_layer_shell, m_wl_surface, nullptr, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, title);
 
-            zwlr_layer_surface_v1_add_listener(m_zwlr_layer_surface, &m_zwlr_layer_surface_v1_listener, this);
-            zwlr_layer_surface_v1_set_size(m_zwlr_layer_surface, 0, 100);
+            zwlr_layer_surface_v1_add_listener(m_zwlr_layer_surface, &m_zwlr_layer_surface_listener, this);
+            zwlr_layer_surface_v1_set_size(m_zwlr_layer_surface, 500, 500);
             zwlr_layer_surface_v1_set_anchor(m_zwlr_layer_surface, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP);
             zwlr_layer_surface_v1_set_margin(m_zwlr_layer_surface, 10, 10, 10, 10);
+
+            wl_surface_commit(m_wl_surface);
+            wl_display_roundtrip(m_wl_display);
         }
 
         wl_callback* frame_callback = wl_surface_frame(m_wl_surface);
         wl_callback_add_listener(frame_callback, &m_frame_callback_listener, this);
 
-        init_egl(width, height);
-        m_renderer.emplace(*this);
-
-        wl_surface_commit(m_wl_surface);
-        // doesnt work for some reason
-        // eglSwapBuffers(m_egl_display, m_egl_surface);
+        eglSwapBuffers(m_egl_display, m_egl_surface);
     }
 
     ~WaylandWindow() {
@@ -171,7 +174,8 @@ private:
         wl_egl_window_resize(self.m_egl_window, width, height, 0, 0);
     }
 
-    void init_egl(int width, int height) {
+    // returns true on success
+    [[nodiscard]] bool init_egl(int width, int height) {
         // TODO: remove asseration in favor of proper error handling
 
         std::array config_attribs {
@@ -192,33 +196,35 @@ private:
         };
 
         m_egl_display = eglGetDisplay(m_wl_display);
-        assert(m_egl_display != EGL_NO_DISPLAY);
+        if (m_egl_display == EGL_NO_DISPLAY) return false;
 
         EGLint major, minor;
-        assert(eglInitialize(m_egl_display, &major, &minor) == EGL_TRUE);
+        if (eglInitialize(m_egl_display, &major, &minor) != EGL_TRUE) return false;
 
         EGLint config_count;
         eglGetConfigs(m_egl_display, nullptr, 0, &config_count);
 
         std::vector<EGLConfig> configs(config_count);
 
-        assert(eglBindAPI(EGL_OPENGL_API));
+        if (!eglBindAPI(EGL_OPENGL_API)) return false;
 
         EGLint n;
         eglChooseConfig(m_egl_display, config_attribs.data(), configs.data(), config_count, &n);
 
         m_egl_config = configs.front();
         m_egl_context = eglCreateContext(m_egl_display, m_egl_config, EGL_NO_CONTEXT, context_attribs.data());
-        assert(m_egl_context != EGL_NO_CONTEXT);
+        if (m_egl_context == EGL_NO_CONTEXT) return false;
 
         m_egl_window = wl_egl_window_create(m_wl_surface, width, height);
-        assert(m_egl_window != EGL_NO_SURFACE);
+        if (m_egl_window == EGL_NO_SURFACE) return false;
 
         m_egl_surface = eglCreateWindowSurface(m_egl_display, m_egl_config, m_egl_window, nullptr);
-        assert(eglMakeCurrent(m_egl_display, m_egl_surface, m_egl_surface, m_egl_context));
+        if (!eglMakeCurrent(m_egl_display, m_egl_surface, m_egl_surface, m_egl_context)) return false;
+
+        return true;
     }
 
-    static inline zwlr_layer_surface_v1_listener m_zwlr_layer_surface_v1_listener {
+    static inline zwlr_layer_surface_v1_listener m_zwlr_layer_surface_listener {
         .configure = zwlr_layer_surface_v1_configure,
         .closed = util::DefaultConstructedFunction<decltype(zwlr_layer_surface_v1_listener::closed)>::value,
     };
@@ -233,7 +239,7 @@ private:
         }
     };
 
-    static inline wl_registry_listener m_registry_listener {
+    static inline wl_registry_listener m_wl_registry_listener {
         .global = bind_globals,
         .global_remove = util::DefaultConstructedFunction<decltype(wl_registry_listener::global_remove)>::value,
     };
@@ -249,7 +255,7 @@ private:
         .wm_capabilities  = util::DefaultConstructedFunction<decltype(xdg_toplevel_listener::wm_capabilities)>::value,
     };
 
-    static inline wl_keyboard_listener m_keyboard_listener {
+    static inline wl_keyboard_listener m_wl_keyboard_listener {
         .keymap      = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::keymap)>::value,
         .enter       = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::enter)>::value,
         .leave       = util::DefaultConstructedFunction<decltype(wl_keyboard_listener::leave)>::value,
@@ -266,19 +272,12 @@ private:
 int main() {
 
     WaylandWindow window(1920, 1080, "my wayland app");
-    window.draw_loop([&](gfx::Renderer& rd) {
 
-        static gfx::Animation<gfx::Vec> anim { { 0, 0 }, rd.get_surface().get_center(), std::chrono::seconds(2), gfx::interpolators::ease_in_cubic};
-        static bool first = true;
-        if (first) {
-            anim.start();
-            first = false;
-        }
+    window.draw_loop([&](gfx::Renderer& rd) {
 
         rd.clear_background(gfx::Color::blue());
         rd.draw_rectangle(0, 0, 300, 300, gfx::Color::orange());
         rd.draw_circle(rd.get_surface().get_center(), 150, gfx::Color::red());
-        rd.draw_circle(anim, 150, gfx::Color::lightblue());
         rd.draw_triangle(0, 0, 100, 100, 0, 100, gfx::Color::red());
     });
 
